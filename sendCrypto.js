@@ -6,6 +6,6 @@ export async function sendCrypto(to, amount) {
     amount: amount.toString(), // e.g. "1.00"
     recipient: to,
   });
-  
+
   return result.txHash;
 }

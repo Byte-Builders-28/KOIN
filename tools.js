@@ -1,5 +1,5 @@
-// Tool definitions for Claude's tool-use API
-// Each tool maps to a real Facinet SDK call or contract interaction
+// Tool definitions for Groq LLM tool-use API
+// Each tool maps to ethers.js smart contract calls or wallet operations
 
 export const tools = [
   {
@@ -18,14 +18,14 @@ export const tools = [
   },
 
   {
-    name: 'send_usdc',
-    description: 'Send USDC to a recipient address gaslessly via Facinet facilitator',
+    name: 'send_avax',
+    description: 'Send native AVAX token to a recipient address via direct transfer',
     input_schema: {
       type: 'object',
       properties: {
         amount: {
           type: 'string',
-          description: 'Amount of USDC to send e.g. "1.00"',
+          description: 'Amount of AVAX to send e.g. "0.01"',
         },
         recipient: {
           type: 'string',
@@ -42,7 +42,7 @@ export const tools = [
 
   {
     name: 'mint_nft',
-    description: 'Mint an NFT to a recipient address via smart contract, gaslessly through Facinet',
+    description: 'Mint an NFT to a recipient address via smart contract (ERC721)',
     input_schema: {
       type: 'object',
       properties: {
@@ -65,7 +65,7 @@ export const tools = [
 
   {
     name: 'deploy_contract',
-    description: 'Deploy a smart contract. Requires x402 payment via Facinet before proceeding.',
+    description: 'Deploy a smart contract (escrow, nft, or bounty). Requires USDC payment for deployment.',
     input_schema: {
       type: 'object',
       properties: {
@@ -122,21 +122,6 @@ export const tools = [
         },
       },
       required: ['bounty_id', 'recipient'],
-    },
-  },
-
-  {
-    name: 'get_facilitators',
-    description: 'List active Facinet facilitators on the network with their reputation scores',
-    input_schema: {
-      type: 'object',
-      properties: {
-        limit: {
-          type: 'number',
-          description: 'Max number of facilitators to return',
-        },
-      },
-      required: [],
     },
   },
 ]

@@ -1,5 +1,4 @@
 import Groq from 'groq-sdk'
-import { Facinet } from 'facinet-sdk'
 import { tools } from './tools.js'
 import { executeTool } from './executor.js'
 import readline from 'readline'
@@ -7,7 +6,6 @@ import readline from 'readline'
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
-const facinet = new Facinet({ network: process.env.NETWORK || 'avalanche-fuji' })
 
 const MODEL = 'llama-3.3-70b-versatile'
 
@@ -15,12 +13,11 @@ const SYSTEM = `You are ChainAgent — an autonomous AI agent that executes on-c
 
 You have access to these tools:
 - wallet_balance: check USDC/AVAX balance
-- send_usdc: send USDC to an address via Facinet (gasless)
+- send_avax: send AVAX to an address via direct transfer
 - mint_nft: mint an NFT to an address via smart contract
-- deploy_contract: deploy a contract (requires x402 payment via Facinet)
+- deploy_contract: deploy escrow/NFT contract (requires USDC payment)
 - lock_bounty: lock USDC into escrow contract
 - release_bounty: release escrowed USDC to a recipient
-- get_facilitators: list active Facinet facilitators
 
 Rules:
 - Always plan your steps before executing
@@ -84,7 +81,7 @@ async function runAgent(userMessage) {
         console.log(`\n⚡ Executing: ${toolName}`)
         console.log(`   Input: ${JSON.stringify(toolInput, null, 2)}`)
 
-        const result = await executeTool(toolName, toolInput, facinet)
+        const result = await executeTool(toolName, toolInput)
 
         console.log(`   Result: ${JSON.stringify(result, null, 2)}\n`)
 
@@ -108,12 +105,12 @@ const rl = readline.createInterface({
 
 console.log('╔══════════════════════════════════════╗')
 console.log('║     ChainAgent — On-Chain AI Agent   ║')
-console.log('║     Network: avalanche-fuji          ║')
-console.log('║     Powered by Facinet SDK           ║')
+console.log('║     Network: base-sepolia (Base)     ║')
+console.log('║     Powered by Coinbase AgentKit     ║')
 console.log('╚══════════════════════════════════════╝')
 console.log('\nCommands you can try:')
 console.log('  → wallet balance')
-console.log('  → send 0.50 USDC to 0xAbc...')
+console.log('  → send 0.01 AVAX to 0xAbc...')
 console.log('  → mint nft "Vibeathon Winner" to 0xAbc...')
 console.log('  → lock bounty 1 USDC')
 console.log('  → list facilitators')
