@@ -1,0 +1,16 @@
+{
+  "name": "chainagent",
+  "version": "0.1.0",
+  "description": "Autonomous On-Chain AI Agent powered by Facinet SDK",
+  "type": "module",
+  "main": "agent.js",
+  "scripts": {
+    "start": "node agent.js",
+    "dev": "node --watch agent.js"
+  },
+  "dependencies": {
+    "groq-sdk": "^0.9.0",
+    "ethers": "^6.11.0",
+    "facinet-sdk": "^0.2.3"
+  }
+}
