@@ -124,4 +124,14 @@ export const tools = [
       required: ['bounty_id', 'recipient'],
     },
   },
+
+  {
+    name: 'list_facilitators',
+    description: 'List all available facilitators or participants in the system',
+    input_schema: {
+      type: 'object',
+      properties: {},
+      required: [],
+    },
+  },
 ]

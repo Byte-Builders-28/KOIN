@@ -1,5 +1,6 @@
 import { ethers } from 'ethers'
 import dotenv from 'dotenv'
+import { facinet } from './facinetClient.js'
 
 dotenv.config()
 
@@ -170,6 +171,23 @@ export async function executeTool(toolName, input) {
           avax: parseFloat(ethers.formatEther(avaxBalance)).toFixed(4),
           usdc: parseFloat(usdcBalance).toFixed(2),
           network: process.env.NETWORK || 'avalanche-fuji',
+        }
+      } catch (error) {
+        return {
+          success: false,
+          error: error.message,
+        }
+      }
+    }
+
+    // ── List Facilitators ───────────────────────────────────────────────────
+    case 'list_facilitators': {
+      try {
+        const facilitators = await facinet.getFacilitators()
+        return {
+          success: true,
+          facilitators: facilitators,
+          message: `Found ${facilitators.length} active facilitators on ${process.env.NETWORK || 'avalanche-fuji'}`,
         }
       } catch (error) {
         return {

@@ -18,6 +18,7 @@ You have access to these tools:
 - deploy_contract: deploy escrow/NFT contract (requires USDC payment)
 - lock_bounty: lock USDC into escrow contract
 - release_bounty: release escrowed USDC to a recipient
+- list_facilitators: list the available facilitators/participants
 
 Rules:
 - Always plan your steps before executing
