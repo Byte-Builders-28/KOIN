@@ -50,13 +50,21 @@ async function runAgent(userMessage) {
   console.log('\n🤖 ChainAgent thinking...\n')
 
   while (true) {
-    const response = await groq.chat.completions.create({
-      model: MODEL,
-      max_tokens: 4096,
-      tools: toGroqTools(tools),
-      tool_choice: 'auto',
-      messages,
-    })
+    let response
+    try {
+      response = await groq.chat.completions.create({
+        model: MODEL,
+        max_tokens: 4096,
+        tools: toGroqTools(tools),
+        tool_choice: 'auto',
+        messages,
+      })
+    } catch (err) {
+      // Groq API errors (BadRequestError, rate limits, etc.) — don't crash
+      const detail = err?.error?.error?.failed_generation || err?.error?.error?.message || err.message
+      console.log(`\n❌ AI Error: ${detail}\n`)
+      break
+    }
 
     const msg = response.choices[0].message
     const finishReason = response.choices[0].finish_reason
@@ -76,7 +84,13 @@ async function runAgent(userMessage) {
 
       for (const toolCall of msg.tool_calls) {
         const toolName = toolCall.function.name
-        const toolInput = JSON.parse(toolCall.function.arguments)
+        let toolInput
+        try {
+          toolInput = JSON.parse(toolCall.function.arguments)
+        } catch {
+          console.log(`⚠️  Could not parse arguments for ${toolName}, skipping.`)
+          continue
+        }
 
         console.log(`\n⚡ Executing: ${toolName}`)
         console.log(`   Input: ${JSON.stringify(toolInput, null, 2)}`)
@@ -92,6 +106,9 @@ async function runAgent(userMessage) {
           content: JSON.stringify(result),
         })
       }
+    } else if (finishReason !== 'stop') {
+      // Unexpected finish reason — bail safely
+      break
     }
   }
 }
@@ -105,8 +122,8 @@ const rl = readline.createInterface({
 
 console.log('╔══════════════════════════════════════╗')
 console.log('║     ChainAgent — On-Chain AI Agent   ║')
-console.log('║     Network: base-sepolia (Base)     ║')
-console.log('║     Powered by Coinbase AgentKit     ║')
+console.log('║     Network: avalanche-fuji (AVAX)   ║')
+console.log('║     Powered by Groq Llama-3.3-70b    ║')
 console.log('╚══════════════════════════════════════╝')
 console.log('\nCommands you can try:')
 console.log('  → wallet balance')
@@ -124,7 +141,11 @@ function prompt() {
       return
     }
     if (input.trim()) {
-      await runAgent(input.trim())
+      try {
+        await runAgent(input.trim())
+      } catch (err) {
+        console.log(`\n❌ Unexpected error: ${err.message}\n`)
+      }
     }
     prompt()
   })

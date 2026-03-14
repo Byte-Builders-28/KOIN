@@ -59,7 +59,7 @@ function getProvider() {
 async function getUSDCBalance(address) {
   const wallet = getWallet()
   const usdcContract = new ethers.Contract(CONTRACTS.usdc, ERC20_ABI, wallet.provider)
-  
+
   try {
     const balance = await usdcContract.balanceOf(address)
     const decimals = await usdcContract.decimals()
@@ -75,11 +75,11 @@ async function getUSDCBalance(address) {
 async function sendUSDC(recipient, amount) {
   const wallet = getWallet()
   const usdcContract = new ethers.Contract(CONTRACTS.usdc, ERC20_ABI, wallet)
-  
+
   try {
     // Convert amount to wei (USDC has 6 decimals)
     const amountWei = ethers.parseUnits(amount, 6)
-    
+
     // Check balance
     const balance = await usdcContract.balanceOf(wallet.address)
     if (balance < amountWei) {
@@ -90,11 +90,11 @@ async function sendUSDC(recipient, amount) {
         required: amount,
       }
     }
-    
+
     // Send USDC
     const tx = await usdcContract.transfer(recipient, amountWei)
     const receipt = await tx.wait()
-    
+
     return {
       success: true,
       txHash: receipt.hash,
@@ -116,12 +116,12 @@ async function sendUSDC(recipient, amount) {
 async function approveUSDC(spender, amount) {
   const wallet = getWallet()
   const usdcContract = new ethers.Contract(CONTRACTS.usdc, ERC20_ABI, wallet)
-  
+
   try {
     const amountWei = ethers.parseUnits(amount, 6)
     const tx = await usdcContract.approve(spender, amountWei)
     const receipt = await tx.wait()
-    
+
     return {
       success: true,
       txHash: receipt.hash,
@@ -144,13 +144,27 @@ export async function executeTool(toolName, input) {
     // ── Wallet balance ──────────────────────────────────────────────────────
     case 'wallet_balance': {
       const wallet = getWallet()
-      const address = input.address || wallet.address
+      let address = input.address || wallet.address
       const provider = getProvider()
-      
+
+      // Guard: reject private keys passed as addresses (they are 64 hex chars, not 40)
+      if (address.replace('0x', '').length > 40) {
+        return {
+          success: false,
+          error: 'That looks like a private key, not a wallet address. Your wallet address is: ' + wallet.address,
+          hint: 'Use "wallet balance" (no address) to check your own wallet.',
+        }
+      }
+
+      // Ensure address is a checksummed valid address
+      try { address = ethers.getAddress(address) } catch {
+        return { success: false, error: 'Invalid Ethereum address format: ' + address }
+      }
+
       try {
         const avaxBalance = await provider.getBalance(address)
         const usdcBalance = await getUSDCBalance(address)
-        
+
         return {
           address,
           avax: parseFloat(ethers.formatEther(avaxBalance)).toFixed(4),
@@ -170,20 +184,20 @@ export async function executeTool(toolName, input) {
       try {
         const wallet = getWallet()
         const amountWei = ethers.parseEther(input.amount)
-        
+
         const tx = await wallet.sendTransaction({
           to: input.recipient,
           value: amountWei
         })
         const receipt = await tx.wait()
-        
+
         return {
-            success: true,
-            txHash: receipt.hash,
-            amount: input.amount,
-            recipient: input.recipient,
-            memo: input.memo || null,
-            confirmation: 'Transaction confirmed on-chain',
+          success: true,
+          txHash: receipt.hash,
+          amount: input.amount,
+          recipient: input.recipient,
+          memo: input.memo || null,
+          confirmation: 'Transaction confirmed on-chain',
         }
       } catch (error) {
         return {
@@ -199,14 +213,14 @@ export async function executeTool(toolName, input) {
       const nftContract = new ethers.Contract(CONTRACTS.nft, NFT_ABI, wallet)
       const metadataUri = input.metadata_uri ||
         `https://api.chainagent.xyz/metadata/${encodeURIComponent(input.name)}`
-      
+
       try {
         const tx = await nftContract.mint(input.recipient, metadataUri)
         const receipt = await tx.wait()
-        
+
         // Extract token ID from logs (simplified)
         const tokenId = receipt.logs.length > 0 ? Math.floor(Math.random() * 10000) : '?'
-        
+
         return {
           success: true,
           txHash: receipt.hash,
@@ -228,12 +242,12 @@ export async function executeTool(toolName, input) {
     case 'deploy_contract': {
       const DEPLOY_COST = '0.10' // USDC
       const wallet = getWallet()
-      
+
       try {
         // Step 1: Check balance
         const usdcBalance = await getUSDCBalance(wallet.address)
         const balance = parseFloat(usdcBalance)
-        
+
         if (balance < parseFloat(DEPLOY_COST)) {
           return {
             success: false,
@@ -242,13 +256,13 @@ export async function executeTool(toolName, input) {
             available: usdcBalance,
           }
         }
-        
+
         // Step 2: Send payment to treasury
         const paymentResult = await sendUSDC(
           process.env.TREASURY_WALLET || wallet.address,
           DEPLOY_COST
         )
-        
+
         if (!paymentResult.success) {
           return {
             success: false,
@@ -256,11 +270,11 @@ export async function executeTool(toolName, input) {
             details: paymentResult.error,
           }
         }
-        
+
         // Step 3: Simulate contract deployment
         // In production: deploy actual contract bytecode
         const mockContractAddress = '0x' + Math.random().toString(16).slice(2, 42).padEnd(40, '0')
-        
+
         return {
           success: true,
           contractType: input.contract_type,
@@ -285,7 +299,7 @@ export async function executeTool(toolName, input) {
       const taskId = `task_${Date.now()}`
       const deadlineHours = input.deadline_hours || 24
       const deadlineTs = Math.floor(Date.now() / 1000) + deadlineHours * 3600
-      
+
       try {
         // Step 1: Approve escrow to spend USDC
         const approveResult = await approveUSDC(CONTRACTS.escrow, input.amount)
@@ -296,12 +310,12 @@ export async function executeTool(toolName, input) {
             details: approveResult.error,
           }
         }
-        
+
         // Step 2: Lock bounty
         const amountWei = ethers.parseUnits(input.amount, 6)
         const tx = await escrowContract.lockBounty(taskId, amountWei, deadlineTs)
         const receipt = await tx.wait()
-        
+
         return {
           success: true,
           bountyId: taskId,
@@ -324,11 +338,11 @@ export async function executeTool(toolName, input) {
     case 'release_bounty': {
       const wallet = getWallet()
       const escrowContract = new ethers.Contract(CONTRACTS.escrow, ESCROW_ABI, wallet)
-      
+
       try {
         const tx = await escrowContract.releaseBounty(input.bounty_id, input.recipient)
         const receipt = await tx.wait()
-        
+
         return {
           success: true,
           txHash: receipt.hash,
@@ -349,11 +363,11 @@ export async function executeTool(toolName, input) {
     case 'refund_bounty': {
       const wallet = getWallet()
       const escrowContract = new ethers.Contract(CONTRACTS.escrow, ESCROW_ABI, wallet)
-      
+
       try {
         const tx = await escrowContract.refundBounty(input.bounty_id)
         const receipt = await tx.wait()
-        
+
         return {
           success: true,
           txHash: receipt.hash,
