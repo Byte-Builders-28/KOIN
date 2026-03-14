@@ -33,10 +33,12 @@ const ESCROW_ABI = [
 
 // ─── Contract addresses (testnet) ────────────────────────────────────────────
 
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
+
 const CONTRACTS = {
-  usdc: process.env.USDC_CONTRACT || '0xYourUSDCContract',
-  nft: process.env.NFT_CONTRACT || '0xYourNFTContract',
-  escrow: process.env.ESCROW_CONTRACT || '0xYourEscrowContract',
+  usdc: process.env.USDC_CONTRACT || ZERO_ADDRESS,
+  nft: process.env.NFT_CONTRACT || ZERO_ADDRESS,
+  escrow: process.env.ESCROW_CONTRACT || ZERO_ADDRESS,
 }
 
 // ─── Provider / Wallet setup (via Coinbase AgentKit conceptually) ─────────────
@@ -48,11 +50,24 @@ const CONTRACTS = {
 
 function getWallet() {
   const provider = new ethers.JsonRpcProvider(process.env.RPC_URL)
-  return new ethers.Wallet(process.env.AGENT_PRIVATE_KEY, provider)
+  return new ethers.Wallet(process.env.AGENT_PRIVATE_KEY || process.env.PRIVATE_KEY, provider)
 }
 
 function getProvider() {
   return new ethers.JsonRpcProvider(process.env.RPC_URL)
+}
+
+function resolveValidAddress(addressInput) {
+  if (!addressInput) return null;
+  // Guard: reject private keys passed as addresses 
+  if (addressInput.replace('0x', '').length > 40) {
+    throw new Error('Looks like a private key rather than a wallet address. Did you paste a private key?');
+  }
+  try {
+    return ethers.getAddress(addressInput);
+  } catch {
+    throw new Error('Invalid Ethereum address format: ' + addressInput);
+  }
 }
 
 // ─── Helper: Get USDC balance ────────────────────────────────────────────────
@@ -140,27 +155,22 @@ async function approveUSDC(spender, amount) {
 // ─── Executor ────────────────────────────────────────────────────────────────
 
 export async function executeTool(toolName, input) {
+  input = input || {}
+  
   switch (toolName) {
 
     // ── Wallet balance ──────────────────────────────────────────────────────
     case 'wallet_balance': {
       const wallet = getWallet()
-      let address = input.address || wallet.address
+      let address
+      
+      try {
+        address = resolveValidAddress(input.address || wallet.address)
+      } catch (err) {
+        return { success: false, error: err.message }
+      }
+      
       const provider = getProvider()
-
-      // Guard: reject private keys passed as addresses (they are 64 hex chars, not 40)
-      if (address.replace('0x', '').length > 40) {
-        return {
-          success: false,
-          error: 'That looks like a private key, not a wallet address. Your wallet address is: ' + wallet.address,
-          hint: 'Use "wallet balance" (no address) to check your own wallet.',
-        }
-      }
-
-      // Ensure address is a checksummed valid address
-      try { address = ethers.getAddress(address) } catch {
-        return { success: false, error: 'Invalid Ethereum address format: ' + address }
-      }
 
       try {
         const avaxBalance = await provider.getBalance(address)
@@ -201,10 +211,11 @@ export async function executeTool(toolName, input) {
     case 'send_avax': {
       try {
         const wallet = getWallet()
+        const recipient = resolveValidAddress(input.recipient)
         const amountWei = ethers.parseEther(input.amount)
 
         const tx = await wallet.sendTransaction({
-          to: input.recipient,
+          to: recipient,
           value: amountWei
         })
         const receipt = await tx.wait()
@@ -213,7 +224,7 @@ export async function executeTool(toolName, input) {
           success: true,
           txHash: receipt.hash,
           amount: input.amount,
-          recipient: input.recipient,
+          recipient: recipient,
           memo: input.memo || null,
           confirmation: 'Transaction confirmed on-chain',
         }
@@ -231,9 +242,16 @@ export async function executeTool(toolName, input) {
       const nftContract = new ethers.Contract(CONTRACTS.nft, NFT_ABI, wallet)
       const metadataUri = input.metadata_uri ||
         `https://api.chainagent.xyz/metadata/${encodeURIComponent(input.name)}`
+        
+      let recipient
+      try {
+        recipient = resolveValidAddress(input.recipient)
+      } catch(e) {
+        return { success: false, error: e.message }
+      }
 
       try {
-        const tx = await nftContract.mint(input.recipient, metadataUri)
+        const tx = await nftContract.mint(recipient, metadataUri)
         const receipt = await tx.wait()
 
         // Extract token ID from logs (simplified)
@@ -244,7 +262,7 @@ export async function executeTool(toolName, input) {
           txHash: receipt.hash,
           tokenId: tokenId.toString(),
           name: input.name,
-          recipient: input.recipient,
+          recipient: recipient,
           metadataUri,
           blockNumber: receipt.blockNumber,
         }
@@ -356,16 +374,23 @@ export async function executeTool(toolName, input) {
     case 'release_bounty': {
       const wallet = getWallet()
       const escrowContract = new ethers.Contract(CONTRACTS.escrow, ESCROW_ABI, wallet)
+      
+      let recipient
+      try {
+        recipient = resolveValidAddress(input.recipient)
+      } catch(e) {
+        return { success: false, error: e.message }
+      }
 
       try {
-        const tx = await escrowContract.releaseBounty(input.bounty_id, input.recipient)
+        const tx = await escrowContract.releaseBounty(input.bounty_id, recipient)
         const receipt = await tx.wait()
 
         return {
           success: true,
           txHash: receipt.hash,
           bountyId: input.bounty_id,
-          recipient: input.recipient,
+          recipient: recipient,
           status: 'Bounty released successfully',
           blockNumber: receipt.blockNumber,
         }
